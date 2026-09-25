@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import './App.css'
 
 function isMobileDevice() {
@@ -11,11 +11,42 @@ function isMobileDevice() {
   )
 }
 
+function enterFullscreenMode() {
+  const elem = document.documentElement
+  if (elem.requestFullscreen) {
+    elem.requestFullscreen().catch(() => {})
+  } else if (elem.webkitRequestFullscreen) {
+    elem.webkitRequestFullscreen()
+  } else if (elem.msRequestFullscreen) {
+    elem.msRequestFullscreen()
+  }
+}
+
+function exitFullscreenMode() {
+  if (document.fullscreenElement || document.webkitFullscreenElement) {
+    if (document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {})
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen()
+    }
+  }
+}
+
 function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
   const audioCtxRef = useRef(null)
   const gainNodeRef = useRef(null)
+
+  const stopPlayback = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.currentTime = 0
+    }
+    setIsPlaying(false)
+    exitFullscreenMode()
+    document.body.style.overflow = ''
+  }, [])
 
   const handlePlaySound = useCallback(() => {
     const isMobile = isMobileDevice()
@@ -25,7 +56,11 @@ function App() {
       const audio = new Audio('/sound.mp3')
       audio.crossOrigin = 'anonymous'
       audio.volume = 1.0
-      audio.addEventListener('ended', () => setIsPlaying(false))
+      audio.addEventListener('ended', () => {
+        setIsPlaying(false)
+        exitFullscreenMode()
+        document.body.style.overflow = ''
+      })
       audioRef.current = audio
 
       // Web Audio API setup with Compressor + Gain for extreme phone volume
@@ -59,9 +94,7 @@ function App() {
     }
 
     if (isPlaying) {
-      audioRef.current.pause()
-      audioRef.current.currentTime = 0
-      setIsPlaying(false)
+      stopPlayback()
     } else {
       if (audioCtxRef.current) {
         if (audioCtxRef.current.state === 'suspended') {
@@ -73,8 +106,26 @@ function App() {
       }
       audioRef.current.play().catch(() => {})
       setIsPlaying(true)
+      document.body.style.overflow = 'hidden'
+      enterFullscreenMode()
     }
-  }, [isPlaying])
+  }, [isPlaying, stopPlayback])
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const isFullscreen = Boolean(document.fullscreenElement || document.webkitFullscreenElement)
+      if (!isFullscreen && isPlaying) {
+        stopPlayback()
+      }
+    }
+
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange)
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', onFullscreenChange)
+    }
+  }, [isPlaying, stopPlayback])
 
   return (
     <>
@@ -107,52 +158,10 @@ function App() {
             Every secret has an expiration date. Every mask eventually falls.
             The countdown has begun.
           </p>
-        </div>
-      </section>
-
-      {/* ===== ABOUT SECTION ===== */}
-      <div className="divider"></div>
-
-      <section className="content-section" id="about">
-        <span className="section-badge">About</span>
-        <h2 className="section-title">What Is Meyebaj?</h2>
-        <p className="section-text">
-          Meyebaj is the reckoning — a force that strips away the façade and
-          lays bare the truth hiding in plain sight. It doesn't ask for
-          permission, and it doesn't wait for the right moment. When the
-          evidence speaks, Meyebaj amplifies it.
-        </p>
-        <p className="section-text">
-          This is not a witch hunt. This is accountability. Every claim backed
-          by proof. Every allegation grounded in reality. The era of unchecked
-          deception ends here.
-        </p>
-      </section>
-
-      {/* ===== STATS ===== */}
-      <section className="stats-section" id="stats">
-        <div className="stats-grid">
-          <div className="stat-item">
-            <div className="stat-number">100%</div>
-            <div className="stat-label">Transparency</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-number">0</div>
-            <div className="stat-label">Lies Tolerated</div>
-          </div>
-          <div className="stat-item">
-            <div className="stat-number">∞</div>
-            <div className="stat-label">Receipts Collected</div>
+          <div className="hero__giant-text" aria-label="Meyebaj">
+            MEYEBAJ
           </div>
         </div>
-      </section>
-
-      {/* ===== QUOTE ===== */}
-      <section className="quote-section" id="quote">
-        <p className="quote-text">
-          Meyebaj doesn't destroy reputations — it reveals who built them on lies.
-        </p>
-        <p className="quote-attribution">— Meyebaj</p>
       </section>
 
       <div className="divider"></div>
@@ -229,6 +238,23 @@ function App() {
         <div className="footer__brand">MEYEBAJ</div>
         <p className="footer__text">The truth needs no defence.</p>
       </footer>
+
+      {/* ===== FULLSCREEN FREEZE (SHOWS ONLY HERO.JPG) ===== */}
+      {isPlaying && (
+        <div
+          className="fullscreen-freeze"
+          onClick={handlePlaySound}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Fullscreen hero image"
+        >
+          <img
+            src="/hero.jpg"
+            alt="Hero Fullscreen Freeze"
+            className="fullscreen-freeze__img"
+          />
+        </div>
+      )}
     </>
   )
 }
