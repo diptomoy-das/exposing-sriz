@@ -15,14 +15,14 @@ function App() {
       audio.addEventListener('ended', () => setIsPlaying(false))
       audioRef.current = audio
 
-      // Web Audio API to boost volume by 500% (gain: 5.0)
+      // Web Audio API to boost volume by 1200% (gain: 12.0)
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       if (AudioContextClass) {
         try {
           const ctx = new AudioContextClass()
           const source = ctx.createMediaElementSource(audio)
           const gainNode = ctx.createGain()
-          gainNode.gain.value = 5.0 // 500% volume
+          gainNode.gain.value = 12.0 // 1200% volume
           source.connect(gainNode)
           gainNode.connect(ctx.destination)
           audioCtxRef.current = ctx
@@ -42,7 +42,7 @@ function App() {
         await audioCtxRef.current.resume()
       }
       if (gainNodeRef.current) {
-        gainNodeRef.current.gain.value = 5.0
+        gainNodeRef.current.gain.value = 12.0
       }
       audioRef.current.play().catch(() => {})
       setIsPlaying(true)
@@ -187,7 +187,7 @@ function App() {
 
             <div className="video-overlay-bar">
               <span className="video-timestamp">
-                {isPlaying ? 'PLAYING AUDIO (500% VOL BOOSTED)' : '00:04:12 / 12:45'}
+                {isPlaying ? 'PLAYING AUDIO (1200% VOL BOOSTED)' : '00:04:12 / 12:45'}
               </span>
               <span className="video-tag">1080P • LEAKED FOOTAGE</span>
             </div>
