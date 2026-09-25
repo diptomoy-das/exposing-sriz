@@ -4,12 +4,33 @@ import './App.css'
 function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
+  const audioCtxRef = useRef(null)
+  const gainNodeRef = useRef(null)
 
-  const handlePlaySound = useCallback(() => {
+  const handlePlaySound = useCallback(async () => {
     if (!audioRef.current) {
-      audioRef.current = new Audio('/sound.mp3')
-      audioRef.current.volume = 1.0
-      audioRef.current.addEventListener('ended', () => setIsPlaying(false))
+      const audio = new Audio('/sound.mp3')
+      audio.crossOrigin = 'anonymous'
+      audio.volume = 1.0
+      audio.addEventListener('ended', () => setIsPlaying(false))
+      audioRef.current = audio
+
+      // Web Audio API to boost volume by 500% (gain: 5.0)
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext
+      if (AudioContextClass) {
+        try {
+          const ctx = new AudioContextClass()
+          const source = ctx.createMediaElementSource(audio)
+          const gainNode = ctx.createGain()
+          gainNode.gain.value = 5.0 // 500% volume
+          source.connect(gainNode)
+          gainNode.connect(ctx.destination)
+          audioCtxRef.current = ctx
+          gainNodeRef.current = gainNode
+        } catch {
+          // Fallback to standard volume if audio context fails
+        }
+      }
     }
 
     if (isPlaying) {
@@ -17,7 +38,12 @@ function App() {
       audioRef.current.currentTime = 0
       setIsPlaying(false)
     } else {
-      audioRef.current.volume = 1.0
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        await audioCtxRef.current.resume()
+      }
+      if (gainNodeRef.current) {
+        gainNodeRef.current.gain.value = 5.0
+      }
       audioRef.current.play().catch(() => {})
       setIsPlaying(true)
     }
@@ -131,7 +157,7 @@ function App() {
                 className={`play-btn ${isPlaying ? 'play-btn--playing' : ''}`}
                 onClick={handlePlaySound}
                 id="play-sound-btn"
-                aria-label={isPlaying ? 'Stop audio' : 'Play audio'}
+                aria-label={isPlaying ? 'Stop call recordings' : 'Hear call recordings'}
               >
                 {isPlaying ? (
                   <>
@@ -139,7 +165,7 @@ function App() {
                       <rect x="6" y="4" width="4" height="16" rx="1" />
                       <rect x="14" y="4" width="4" height="16" rx="1" />
                     </svg>
-                    STOP AUDIO
+                    STOP RECORDINGS
                     <div className="visualizer" aria-hidden="true">
                       <div className="visualizer__bar"></div>
                       <div className="visualizer__bar"></div>
@@ -153,7 +179,7 @@ function App() {
                     <svg className="play-btn__icon" viewBox="0 0 24 24" aria-hidden="true">
                       <path d="M8 5.14v14.72a1 1 0 0 0 1.5.86l11-7.36a1 1 0 0 0 0-1.72l-11-7.36A1 1 0 0 0 8 5.14z" />
                     </svg>
-                    PLAY MEYEBAJ AUDIO
+                    HEAR CALL RECORDINGS
                   </>
                 )}
               </button>
@@ -161,7 +187,7 @@ function App() {
 
             <div className="video-overlay-bar">
               <span className="video-timestamp">
-                {isPlaying ? 'PLAYING AUDIO (100% VOL)' : '00:04:12 / 12:45'}
+                {isPlaying ? 'PLAYING AUDIO (500% VOL BOOSTED)' : '00:04:12 / 12:45'}
               </span>
               <span className="video-tag">1080P • LEAKED FOOTAGE</span>
             </div>
