@@ -1,13 +1,26 @@
 import { useState, useRef, useCallback } from 'react'
 import './App.css'
 
+function isMobileDevice() {
+  return (
+    typeof window !== 'undefined' &&
+    (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+      window.innerWidth <= 768 ||
+      ('ontouchstart' in window) ||
+      (navigator.maxTouchPoints && navigator.maxTouchPoints > 0))
+  )
+}
+
 function App() {
   const [isPlaying, setIsPlaying] = useState(false)
   const audioRef = useRef(null)
   const audioCtxRef = useRef(null)
   const gainNodeRef = useRef(null)
 
-  const handlePlaySound = useCallback(async () => {
+  const handlePlaySound = useCallback(() => {
+    const isMobile = isMobileDevice()
+    const targetGain = isMobile ? 25.0 : 15.0 // 2500% volume for phone speakers
+
     if (!audioRef.current) {
       const audio = new Audio('/sound.mp3')
       audio.crossOrigin = 'anonymous'
@@ -15,16 +28,28 @@ function App() {
       audio.addEventListener('ended', () => setIsPlaying(false))
       audioRef.current = audio
 
-      // Web Audio API to boost volume by 1200% (gain: 12.0)
+      // Web Audio API setup with Compressor + Gain for extreme phone volume
       const AudioContextClass = window.AudioContext || window.webkitAudioContext
       if (AudioContextClass) {
         try {
           const ctx = new AudioContextClass()
           const source = ctx.createMediaElementSource(audio)
+
+          // Dynamic compressor acting as loudness maximizer for mobile speakers
+          const compressor = ctx.createDynamicsCompressor()
+          compressor.threshold.setValueAtTime(-24, ctx.currentTime)
+          compressor.knee.setValueAtTime(30, ctx.currentTime)
+          compressor.ratio.setValueAtTime(12, ctx.currentTime)
+          compressor.attack.setValueAtTime(0.003, ctx.currentTime)
+          compressor.release.setValueAtTime(0.25, ctx.currentTime)
+
           const gainNode = ctx.createGain()
-          gainNode.gain.value = 12.0 // 1200% volume
-          source.connect(gainNode)
+          gainNode.gain.setValueAtTime(targetGain, ctx.currentTime)
+
+          source.connect(compressor)
+          compressor.connect(gainNode)
           gainNode.connect(ctx.destination)
+
           audioCtxRef.current = ctx
           gainNodeRef.current = gainNode
         } catch {
@@ -38,11 +63,13 @@ function App() {
       audioRef.current.currentTime = 0
       setIsPlaying(false)
     } else {
-      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-        await audioCtxRef.current.resume()
+      if (audioCtxRef.current) {
+        if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume()
+        }
       }
       if (gainNodeRef.current) {
-        gainNodeRef.current.gain.value = 12.0
+        gainNodeRef.current.gain.setValueAtTime(targetGain, audioCtxRef.current?.currentTime || 0)
       }
       audioRef.current.play().catch(() => {})
       setIsPlaying(true)
@@ -187,7 +214,7 @@ function App() {
 
             <div className="video-overlay-bar">
               <span className="video-timestamp">
-                {isPlaying ? 'PLAYING AUDIO (1200% VOL BOOSTED)' : '00:04:12 / 12:45'}
+                {isPlaying ? 'PLAYING AUDIO (MAX BOOSTED)' : '00:04:12 / 12:45'}
               </span>
               <span className="video-tag">1080P • LEAKED FOOTAGE</span>
             </div>
